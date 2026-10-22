@@ -1,0 +1,23 @@
+[project]
+name = "d091-homeopathy"
+version = "0.1.0"
+description = "Homeopathy medicine lookup with web-grounded, source-cited AI summaries"
+readme = "README.md"
+authors = [
+    { name = "vmu", email = "vmurthy025@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "streamlit>=1.66.0",
+    "requests>=2.31",
+    "openai>=1.40",
+    "ddgs>=9.0",
+    "fpdf2>=2.7.9",
+]
+
+[project.scripts]
+d091-homeopathy = "d091_homeopathy:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
