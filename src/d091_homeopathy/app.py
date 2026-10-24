@@ -26,7 +26,11 @@ st.markdown(
     """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Public+Sans:wght@400;500;600&display=swap');
-html, body, [class*="st-"] { font-family: 'Public Sans', sans-serif; }
+html, body, [class*="st-"]:not([data-testid="stIconMaterial"]) { font-family: 'Public Sans', sans-serif; }
+/* keep Streamlit's icon font intact, otherwise ligature names like "arrow_right" show as text */
+[data-testid="stIconMaterial"], .material-icons, .material-symbols-rounded {
+    font-family: 'Material Symbols Rounded', 'Material Icons' !important;
+    font-feature-settings: 'liga'; letter-spacing: normal; text-transform: none; }
 h1, h2, h3 { font-family: 'Fraunces', serif !important; color: #2F5446; }
 .hero { padding: 1.4rem 1.6rem; border-radius: 18px; margin-bottom: 1rem;
         background: linear-gradient(120deg, #DCE8DF 0%, #E6EDF3 100%); }
