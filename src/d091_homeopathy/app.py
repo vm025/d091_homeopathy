@@ -1,3 +1,4 @@
+import hmac
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -369,6 +370,31 @@ def render_report(rep: dict):
                 st.markdown(f"- [{s['title'] or domain(s['url'])}]({s['url']})")
 
 
+# ---------- passcode landing page ----------
+if not st.session_state.get("authed"):
+    st.markdown(
+        '<div id="hero" style="text-align:center;padding:2.2rem 1.6rem;margin-top:2rem">'
+        "<h1>🌿 Homeopathy Medicine Finder</h1>"
+        "<p>Enter your passcode to continue.</p></div>",
+        unsafe_allow_html=True,
+    )
+    _, mid, _ = st.columns([1, 1.2, 1])
+    with mid:
+        expected = secret("PASSCODE").strip()
+        if not expected:
+            st.error("PASSCODE is missing in .streamlit/secrets.toml")
+            st.stop()
+        with st.form("gate", border=False):
+            code = st.text_input("Passcode", type="password", max_chars=6, placeholder="••••",
+                                 label_visibility="collapsed")
+            ok = st.form_submit_button("🔓 Unlock", width="stretch")
+        if ok:
+            if hmac.compare_digest(code.strip().encode(), expected.encode()):
+                st.session_state.authed = True
+                st.rerun()
+            st.error("Incorrect passcode. Please try again.")
+    st.stop()
+
 # ---------- state ----------
 ss = st.session_state
 ss.setdefault("candidates", None)
@@ -392,6 +418,9 @@ def load_history(h: dict):
 
 # ---------- sidebar ----------
 with st.sidebar:
+    if st.button("🔒 Lock", width="stretch"):
+        st.session_state.authed = False
+        st.rerun()
     st.markdown("### 🕘 Search history")
     if not ss.history:
         st.caption("Your searches will appear here.")
