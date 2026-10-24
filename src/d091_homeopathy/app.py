@@ -385,7 +385,7 @@ if not st.session_state.get("authed"):
             st.error("PASSCODE is missing in .streamlit/secrets.toml")
             st.stop()
         with st.form("gate", border=False):
-            code = st.text_input("Passcode", type="password", max_chars=6, placeholder="••••",
+            code = st.text_input("Passcode", type="password", max_chars=9, placeholder="••••",
                                  label_visibility="collapsed")
             ok = st.form_submit_button("🔓 Unlock", width="stretch")
         if ok:
