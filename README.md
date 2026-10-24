@@ -6,4 +6,4 @@ duckduckgo search engine does not need an API key.
 tavily & serper need API keys.
 
 
-git tag -a v1.1 -m "Release version 1.1"
+git tag -a v1.2 -m "Release version 1.2"

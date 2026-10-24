@@ -18,7 +18,7 @@ DISCLAIMER = (
     "before starting, stopping, or changing any treatment."
 )
 UNAVAILABLE = "Information unavailable"
-ENGINES = ["Tavily", "Serper", "DuckDuckGo"]
+ENGINES = ["Serper", "Tavily", "DuckDuckGo"]
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 
 # ---------- styling ----------
@@ -66,6 +66,18 @@ def secret(key: str) -> str:
 
 def domain(url: str) -> str:
     return urlparse(url).netloc.lower().removeprefix("www.")
+
+
+def format_points(text: str) -> str:
+    """Render multi-point text as clean bullets: keep existing lists, split long prose into sentences."""
+    text = (text or "").strip()
+    if not text:
+        return text
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if any(re.match(r"^([-*•]|\d+[.)])\s+", l) for l in lines):
+        return "\n".join(re.sub(r"^([-*•]|\d+[.)])\s+", "- ", l) for l in lines)
+    parts = [s.strip() for l in lines for s in re.split(r"(?<=[.;!?])\s+(?=[A-Z0-9(])", l) if s.strip()]
+    return "\n".join(f"- {s}" for s in parts) if len(parts) > 3 else text
 
 
 def badge(text: str, cls: str) -> str:
@@ -199,7 +211,7 @@ def build_report(engine: str, medicine: str) -> dict:
         "on the medicine. Rules: (1) never use outside knowledge; (2) if a field is not clearly supported by the "
         "sources set its text to null; (3) 'sources' lists the numbers of the sources supporting that field; "
         "(4) the default potency is 30CH - report dosage for 30CH when stated, and if sources only mention other "
-        "potencies, say so explicitly; (5) keep text concise, use short markdown bullets where helpful; "
+        "potencies, say so explicitly; (5) keep text concise; when a field has more than 3 points, write it as short markdown bullets, one '- ' point per line; "
         f"(6) interactions_homeopathy = clashes/incompatibilities/antidotes with other homeopathic remedies; "
         "interactions_allopathy = clashes with allopathic drugs; (7) never claim 'no side effects' or 'no "
         f"interactions' unless a source explicitly says so. Return ONLY JSON in this shape: {json.dumps(schema)}",
@@ -235,7 +247,7 @@ def confidence(rep: dict) -> tuple[str, str, int]:
 def report_text(rep: dict) -> str:
     f = rep["fields"]
     label, _, n = confidence(rep)
-    def v(k): return f[k]["text"] or UNAVAILABLE
+    def v(k): return format_points(f[k]["text"]) or UNAVAILABLE
     parts = [
         f"Medicine: {f['name']['text'] or rep['medicine']}",
         f"Default potency considered: 30CH",
@@ -292,7 +304,7 @@ def section(rep: dict, title: str, key: str, expanded=False):
     fld = rep["fields"][key]
     with st.expander(title, expanded=expanded):
         if fld["text"]:
-            st.markdown(fld["text"])
+            st.markdown(format_points(fld["text"]))
             st.caption(f"Sources: {src_links(rep, fld['sources'])}")
         else:
             st.markdown(na_badge(), unsafe_allow_html=True)
@@ -325,7 +337,7 @@ def render_report(rep: dict):
             st.markdown(f"**{title}**")
             fld = f[key]
             if fld["text"]:
-                st.markdown(fld["text"])
+                st.markdown(format_points(fld["text"]))
                 st.caption(f"Sources: {src_links(rep, fld['sources'])}")
             else:
                 st.markdown(na_badge(), unsafe_allow_html=True)
@@ -359,7 +371,7 @@ ss = st.session_state
 ss.setdefault("candidates", None)
 ss.setdefault("selected", None)
 ss.setdefault("history", [])
-ss.setdefault("engine", "Tavily")
+ss.setdefault("engine", "Serper")
 ss.setdefault("query", "")
 
 
