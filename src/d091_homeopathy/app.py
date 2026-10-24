@@ -5,7 +5,6 @@ from urllib.parse import urlparse
 
 import requests
 import streamlit as st
-import streamlit.components.v1 as components
 from fpdf import FPDF
 from ddgs import DDGS
 from openai import OpenAI
@@ -32,10 +31,9 @@ html, body, [class*="st-"]:not([data-testid="stIconMaterial"]) { font-family: 'P
     font-family: 'Material Symbols Rounded', 'Material Icons' !important;
     font-feature-settings: 'liga'; letter-spacing: normal; text-transform: none; }
 h1, h2, h3 { font-family: 'Fraunces', serif !important; color: #2F5446; }
-.hero { padding: 1.4rem 1.6rem; border-radius: 18px; margin-bottom: 1rem;
-        background: linear-gradient(120deg, #DCE8DF 0%, #E6EDF3 100%); }
-.hero h1 { margin: 0; font-size: 2rem; }
-.hero p { margin: .3rem 0 0; color: #51635A; }
+#hero { padding: 1.4rem 1.6rem; border-radius: 18px; margin-bottom: 1rem; background: #000; }
+#hero h1 { margin: 0; font-size: 2rem; color: #D4AF37 !important; }
+#hero p { margin: .3rem 0 0; color: #E6C65C; }
 .stButton > button, .stDownloadButton > button { background: #3F6B5C; color: #fff; border: 0;
         border-radius: 12px; padding: .55rem 1rem; font-weight: 600; transition: background .15s; }
 .stButton > button:hover, .stDownloadButton > button:hover { background: #2F5446; color: #fff; }
@@ -285,7 +283,7 @@ def make_pdf(rep: dict) -> bytes:
 
 def copy_button(text: str):
     payload = json.dumps(text).replace("</", "<\\/")
-    components.html(
+    st.iframe(
         """<button id="b" style="background:#3F6B5C;color:#fff;border:0;border-radius:12px;padding:.6rem 1rem;
         font:600 15px sans-serif;width:100%;cursor:pointer">📋 Copy Report</button>
         <script>const t=__T__;const b=document.getElementById('b');
@@ -293,6 +291,7 @@ def copy_button(text: str):
         a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}
         b.innerText='Copied ✓';setTimeout(()=>b.innerText='📋 Copy Report',1800)}</script>""".replace("__T__", payload),
         height=50,
+        width="stretch",
     )
 
 
@@ -399,7 +398,7 @@ with st.sidebar:
 
 # ---------- main ----------
 st.markdown(
-    '<div class="hero"><h1>🌿 Homeopathy Medicine Finder</h1>'
+    '<div id="hero"><h1>🌿 Homeopathy Medicine Finder</h1>'
     "<p>Type a full or partial medicine name. Every detail is traced back to a web source.</p></div>",
     unsafe_allow_html=True,
 )
