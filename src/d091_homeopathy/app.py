@@ -31,8 +31,10 @@ html, body, [class*="st-"]:not([data-testid="stIconMaterial"]) { font-family: 'P
     font-family: 'Material Symbols Rounded', 'Material Icons' !important;
     font-feature-settings: 'liga'; letter-spacing: normal; text-transform: none; }
 h1, h2, h3 { font-family: 'Fraunces', serif !important; color: #2F5446; }
-#hero { padding: 1.4rem 1.6rem; border-radius: 18px; margin-bottom: 1rem; background: #000; }
+#hero { position: relative; padding: 1.4rem 1.6rem; border-radius: 18px; margin-bottom: 1rem; background: #000; }
 #hero h1 { margin: 0; font-size: 2rem; color: #D4AF37 !important; }
+#hero .tok { position: absolute; top: .9rem; right: 1.1rem; padding: .25rem .8rem; border-radius: 999px;
+        border: 1px solid #D4AF37; color: #E6C65C; font-size: .78rem; background: rgba(212,175,55,.08); }
 #hero p { margin: .3rem 0 0; color: #E6C65C; }
 .stButton > button, .stDownloadButton > button { background: #3F6B5C; color: #fff; border: 0;
         border-radius: 12px; padding: .55rem 1rem; font-weight: 600; transition: background .15s; }
@@ -146,7 +148,7 @@ def web_search(engine: str, query: str, deep: bool = False) -> list[dict]:
 
 
 # ---------- LLM layer ----------
-def llm(system: str, user: str) -> str:
+def llm(system: str, user: str) -> tuple[str, dict]:
     client = OpenAI(
         api_key=secret("OPENROUTER_API_KEY"), base_url=OPENROUTER_URL,
         default_headers={"HTTP-Referer": "http://localhost:8501", "X-Title": "Homeopathy Medicine Finder"},
@@ -155,7 +157,9 @@ def llm(system: str, user: str) -> str:
         model=secret("OPENROUTER_MODEL"), temperature=0,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
     )
-    return resp.choices[0].message.content or ""
+    u = resp.usage
+    usage = {"in": getattr(u, "prompt_tokens", 0) or 0, "out": getattr(u, "completion_tokens", 0) or 0}
+    return resp.choices[0].message.content or "", usage
 
 
 def parse_json(raw: str):
@@ -165,10 +169,10 @@ def parse_json(raw: str):
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def find_candidates(engine: str, query: str) -> list[str]:
+def find_candidates(engine: str, query: str) -> tuple[list[str], dict]:
     results = web_search(engine, f"{query} homeopathic medicine remedy name")
     ctx = "\n".join(f"- {r['title']}: {r['text'][:300]}" for r in results)
-    raw = llm(
+    raw, usage = llm(
         "You are an expert in homeopathy in India. From the search snippets ONLY, list up to 8 distinct "
         "homeopathic medicine names that match the user's partial or full name. Use only names that "
         "literally appear in the snippets. Return a JSON array of strings, nothing else. "
@@ -180,7 +184,7 @@ def find_candidates(engine: str, query: str) -> list[str]:
         if isinstance(n, str) and n.strip() and n.strip().lower() not in seen:
             seen.add(n.strip().lower())
             out.append(n.strip())
-    return out
+    return out, usage
 
 
 FIELDS = ["name", "usage", "dosage", "duration", "side_effects", "interactions_homeopathy", "interactions_allopathy"]
@@ -204,7 +208,7 @@ def build_report(engine: str, medicine: str) -> dict:
     sources = sources[:14]
     ctx = "\n\n".join(f"[{i+1}] {s['url']}\n{s['text'][:3000]}" for i, s in enumerate(sources))
     schema = {k: {"text": "string or null", "sources": [1]} for k in FIELDS}
-    raw = llm(
+    raw, usage = llm(
         "You are an expert in homeopathy in India. Using ONLY the numbered sources provided, write a report "
         "on the medicine. Rules: (1) never use outside knowledge; (2) if a field is not clearly supported by the "
         "sources set its text to null; (3) 'sources' lists the numbers of the sources supporting that field; "
@@ -216,7 +220,7 @@ def build_report(engine: str, medicine: str) -> dict:
         f"Medicine: {medicine}\n\nSources:\n{ctx}",
     )
     data = parse_json(raw)
-    rep = {"medicine": medicine, "fields": {}, "sources": sources}
+    rep = {"medicine": medicine, "fields": {}, "sources": sources, "usage": usage}
     cited = set()
     for k in FIELDS:
         f = data.get(k) or {}
@@ -372,6 +376,7 @@ ss.setdefault("selected", None)
 ss.setdefault("history", [])
 ss.setdefault("engine", "Serper")
 ss.setdefault("query", "")
+ss.setdefault("cand_usage", None)
 
 
 def pick(name: str):
@@ -382,7 +387,7 @@ def pick(name: str):
 
 
 def load_history(h: dict):
-    ss.engine, ss.selected, ss.candidates = h["engine"], h["name"], None
+    ss.engine, ss.selected, ss.candidates, ss.cand_usage = h["engine"], h["name"], None, None
 
 
 # ---------- sidebar ----------
@@ -397,11 +402,19 @@ with st.sidebar:
         st.rerun()
 
 # ---------- main ----------
-st.markdown(
-    '<div id="hero"><h1>🌿 Homeopathy Medicine Finder</h1>'
-    "<p>Type a full or partial medicine name. Every detail is traced back to a web source.</p></div>",
-    unsafe_allow_html=True,
-)
+def hero_html(usage: dict | None) -> str:
+    tok = ""
+    if usage:
+        total = usage["in"] + usage["out"]
+        tok = (f'<span class="tok">🪙 LLM tokens · in {usage["in"]:,} · out {usage["out"]:,} · '
+               f"total {total:,}</span>")
+    return (f'<div id="hero">{tok}<h1>🌿 Homeopathy Medicine Finder</h1>'
+            "<p>Type a full or partial medicine name. Every detail is traced back to a web source.</p></div>")
+
+
+hero = st.empty()  # filled at the end of the run, once this interaction's token usage is known
+cur_usage = None
+hero.markdown(hero_html(None), unsafe_allow_html=True)
 
 c1, c2, c3 = st.columns([4, 2, 1.3], vertical_alignment="bottom")
 ss.query = c1.text_input("Medicine name", value=ss.query, placeholder="e.g. Arnica, Nux, Bryo…")
@@ -422,9 +435,9 @@ if go and ss.query.strip():
     ss.selected = None
     try:
         with st.spinner("Searching the web for matching medicines…"):
-            ss.candidates = find_candidates(ss.engine, ss.query.strip())
+            ss.candidates, ss.cand_usage = find_candidates(ss.engine, ss.query.strip())
     except Exception as e:
-        ss.candidates = None
+        ss.candidates, ss.cand_usage = None, None
         st.error(f"Search failed: {e}")
 
 if ss.candidates is not None and not ss.selected:
@@ -442,8 +455,11 @@ if ss.selected:
     try:
         with st.spinner(f"Running a deep search on {ss.selected}…"):
             rep = build_report(ss.engine, ss.selected)
+        base = ss.cand_usage or {"in": 0, "out": 0}
+        cur_usage = {"in": base["in"] + rep["usage"]["in"], "out": base["out"] + rep["usage"]["out"]}
         render_report(rep)
     except Exception as e:
         st.error(f"Could not build the report: {e}")
 
+hero.markdown(hero_html(cur_usage or ss.cand_usage), unsafe_allow_html=True)
 st.markdown(f'<div class="foot">⚕️ {DISCLAIMER}</div>', unsafe_allow_html=True)
